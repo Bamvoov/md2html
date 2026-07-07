@@ -1,10 +1,12 @@
-package main          
+package main
 
 import (
-    "fmt"             
-    "os"    
-	"strings"  
-	"regexp"        
+	"fmt"
+	"net/http"
+	"os"
+	"regexp"
+	"strings"
+
 )
 
 //inline bold and  italic
@@ -23,20 +25,26 @@ func applyInline(text string) string{
 
 func convertLines(line string) string{
 	if strings.HasPrefix(line, "###"){
-		return "<h3>" +strings.TrimPrefix(line,"###") + "</h3>"
+		return "<h3>" +applyInline(strings.TrimPrefix(line,"###")) +"</h3>"
 	}
 	if strings.HasPrefix(line, "##") {
-		return "<h2>" + strings.TrimPrefix(line, "##") + "</h2>"
+		return "<h2>" + applyInline(strings.TrimPrefix(line, "##")) + "</h2>"
 	}
 	if strings.HasPrefix(line, "#"){
-		return "<h1>" + strings.TrimPrefix(line, "#") +"</h1>"
+		return "<h1>" + applyInline(strings.TrimPrefix(line, "#")) +"</h1>"
 	}
 	return line
 }
 
 
-func main() {         
-	data , err  := os.ReadFile("test.md")
+func main() {  
+	if len(os.Args)<2{
+		fmt.Println(("usage : md to html <file.md>"))
+		return
+		}     
+	filename := os.Args[1]
+
+	data , err  := os.ReadFile(filename)
 	if err != nil {
 		fmt.Println("error reading file : ", err)
 		return
@@ -52,18 +60,18 @@ func main() {
 	flush := func(){
 		if len(paragraph) >0 {
 			text := strings.Join(paragraph, " ")
-			output = append(output, "<p>"+text+"</p>")
+			output = append(output, "<p>"+applyInline(text)+"</p>")
 			paragraph = nil
 		}
 	}
 
 	flushList := func ()  {
 		if len(list)>0{
-			output = append(output, "<u1>")
+			output = append(output, "<ul>")
 			for _, item := range list{
-				output = append(output, "<li>"+applyInline(item)+"</l1>")
+				output = append(output, "<li>"+applyInline(item)+"</li>")
 			}
-			output = append(output, "</u1>")
+			output = append(output, "</ui>")
 			list = nil
 		
 			}		
@@ -78,7 +86,7 @@ func main() {
 		if strings.HasPrefix(trimmed, "#"){
 			flush()
 			flushList()
-			output = append(output, convertLines((trimmed)))
+			output = append(output, convertLines(trimmed))
 			continue
 		}
 
@@ -93,11 +101,19 @@ func main() {
 	flush()
 	flushList()
 
-	html := strings.Join(output, "\n")
-	err = os.WriteFile("output.html", []byte(html), 0644)
+		html := strings.Join(output, "\n")
+	fullHTML := "<html><head><title>Converted Markdown</title></head><body>" + html + "</body></html>"
+
+	err = os.WriteFile("output.html", []byte(fullHTML), 0644) // FIXED: was writing "html" (unwrapped fragment) instead of "fullHTML" (the wrapped version) — file and server output didn't match
 	if err != nil {
 		fmt.Println("error writing file:", err)
 		return
 	}
-	fmt.Println("wrote output.html")
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprint(w, fullHTML)
+	})
+
+	fmt.Println("serving at http://localhost:8080")
+	http.ListenAndServe(":8080", nil)
 }
