@@ -1,1 +1,5 @@
+# Ignore the test file
 test.md
+
+# Ignore the HTML output file
+output.html
